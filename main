@@ -1,0 +1,144 @@
+local tool = script.Parent
+local del = false
+local invite = tool:WaitForChild("InviteUI")
+local hearts = tool:WaitForChild("Hearts")
+local declined = {}
+
+local function send_invite(first_player, second_player)
+	if first_player:FindFirstChild("sex") or second_player:FindFirstChild("sex") then
+		return
+	end
+	
+	if first_player.PlayerGui:FindFirstChild("InviteUI") or second_player.PlayerGui:FindFirstChild("InviteUI") then
+		return
+	end
+	
+	if declined[second_player.UserId] then
+		game.ReplicatedStorage.rems.events.client.Warning:FireClient(first_player, "ОШИБКА", "Игрок ранее отклонял ваш запрос!", 7.5)
+		return
+	end
+	
+	local clone = invite:Clone()
+	clone.Enabled = true
+	clone.Frame.TextLabel.Text = "Игрок "..first_player.Name.." предлагает заняться вам сексом, вы готовы?"
+	
+	clone.Frame.YES.MouseButton1Down:Connect(function()
+		if first_player:IsDescendantOf(game.Players) then
+			
+			local hrp1, hrp2 = first_player.Character:FindFirstChild("HumanoidRootPart"), second_player.Character:FindFirstChild("HumanoidRootPart")
+			
+			if not hrp1 or not hrp2 then
+				clone:Destroy()
+				return
+			end
+			
+			if hrp1.Velocity.Magnitude > 1 then
+				game.ReplicatedStorage.rems.events.client.Warning:FireClient(first_player, "ОШИБКА", "Вы не сможете заняться сексом, пока двигаетесь!", 7.5)
+				game.ReplicatedStorage.rems.events.client.Warning:FireClient(second_player, "ОШИБКА", "Первый игрок двигается!", 7.5)
+				return
+			end
+			
+			if hrp2.Velocity.Magnitude > 1 then
+				game.ReplicatedStorage.rems.events.client.Warning:FireClient(second_player, "ОШИБКА", "Вы не сможете заняться сексом, пока двигаетесь!", 7.5)
+				game.ReplicatedStorage.rems.events.client.Warning:FireClient(first_player, "ОШИБКА", "Второй игрок двигается!", 7.5)
+				return
+			end
+			
+			local dist = (hrp1.Position-hrp2.Position).Magnitude
+			
+			if dist > 10 then
+				game.ReplicatedStorage.rems.events.client.Warning:FireClient(second_player, "ОШИБКА", "Вы находитесь слишком далеко друг от друга!", 7.5)
+				game.ReplicatedStorage.rems.events.client.Warning:FireClient(first_player, "ОШИБКА", "Вы находитесь слишком далеко друг от друга!", 7.5)
+				return
+			end
+			
+			game.ReplicatedStorage.rems.events.client.Warning:FireClient(first_player, "УСПЕХ", "Ваш запрос на секс был принят игроком: "..second_player.Name.."!", 7.5)
+			clone.Enabled = false
+			
+			local s = Instance.new("BoolValue")
+			s.Name = "sex"
+			s.Parent = first_player
+			local s2 = Instance.new("BoolValue")
+			s2.Name = "sex"
+			s2.Parent = second_player
+			
+			pcall(function()
+				local cl1 = hearts:Clone()
+				local cl2 = hearts:Clone()
+				
+				cl1.Parent = first_player.Character.Head
+				cl2.Parent = second_player.Character.Head
+				
+				cl1.Enabled = true
+				cl2.Enabled = true
+				
+				hrp1.Anchored = true
+				hrp2.Anchored = true
+				
+				hrp2.CFrame = ( (hrp1.CFrame * CFrame.Angles(0,math.rad(180),0) ) + hrp1.CFrame.LookVector*1)
+				
+				task.wait(25)
+				
+				hrp1.Anchored = false
+				hrp2.Anchored = false
+				
+				game.Debris:AddItem(cl1, 0)
+				game.Debris:AddItem(cl2, 0)
+				game.Debris:AddItem(s, 0)
+				game.Debris:AddItem(s2, 0)
+				game.Debris:AddItem(clone, 0)
+			end)
+			
+			clone:Destroy()
+		else
+			clone:Destroy()
+		end
+	end)
+	
+	clone.Frame.NO.MouseButton1Down:Connect(function()
+		declined[second_player.UserId] = true
+		
+		if first_player:IsDescendantOf(game.Players) then
+			game.ReplicatedStorage.rems.events.client.Warning:FireClient(first_player, "ОТКАЗ", "Ваш запрос на секс был отозван игроком: "..second_player.Name.."!", 7.5)
+			clone:Destroy()
+		else
+			clone:Destroy()
+		end
+	end)
+	
+	clone.Parent = second_player.PlayerGui
+	game.ReplicatedStorage.rems.events.client.Warning:FireClient(first_player, "УСПЕХ", "Вы успешно отправили запрос на секс: "..second_player.Name.."!", 7.5)
+end
+
+tool.Activated:Connect(function()
+	if del then
+		return
+	end
+		
+	local char = tool.Parent
+	local player = game.Players:GetPlayerFromCharacter(char)
+	
+	if player then
+		del = true
+		
+		local parts = workspace:FindPartsInRegion3WithIgnoreList(Region3.new(char.Torso.Position - Vector3.new(2, 3, 2), char.Torso.Position + Vector3.new(2, 3, 2)), {char}, math.huge)
+		
+		for i=1, #parts do
+			local get = parts[i]
+			local main = get.Parent
+			
+			if main and main:FindFirstChild("Humanoid") then
+				local player_second = game.Players:GetPlayerFromCharacter(main)
+				
+				if player_second then
+					send_invite(player, player_second)
+					break
+				else
+					del = false
+				end
+			end
+		end
+		
+		del = false
+	end
+end)
